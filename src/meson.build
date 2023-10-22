@@ -16,7 +16,7 @@
 #
 
 virtualtm_headers = []
-virtualtm_sources = [ 'main.c', ]
+virtualtm_sources = [ 'application.c', ]
 
 virtualtm = executable ('virtualtm',
     sources : virtualtm_headers + virtualtm_sources,
