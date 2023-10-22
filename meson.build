@@ -44,6 +44,7 @@ git_version_micro = git_version_list2.get (2)
 libgio_dep = dependency ('gio-2.0', required : true)
 libglib_dep = dependency ('glib-2.0', required : true)
 libgobject_dep = dependency ('gobject-2.0', required : true)
+libjson_dep = dependency ('json-glib-1.0', required : true)
 libsoup_dep = dependency ('libsoup-3.0', required : true)
 
 ########################

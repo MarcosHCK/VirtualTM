@@ -21,7 +21,7 @@ virtualtm_sources = [ 'application.c', ]
 virtualtm = executable ('virtualtm',
     sources : virtualtm_headers + virtualtm_sources,
     c_args : [ ],
-    dependencies : [ libgio_dep, libglib_dep, libgobject_dep, libsoup_dep, ],
+    dependencies : [ libgio_dep, libglib_dep, libgobject_dep, libjson_dep, libsoup_dep, ],
     gnu_symbol_visibility : 'hidden',
     include_directories : [ configinc, srcinc, ],
   )

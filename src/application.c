@@ -16,8 +16,10 @@
  */
 #include <config.h>
 #include <gio/gio.h>
-#include <libsoup/soup-server.h>
+#include <json-glib/json-glib.h>
+#include <libsoup/soup-message-body.h>
 #include <libsoup/soup-server-message.h>
+#include <libsoup/soup-server.h>
 
 struct _VtmApplication
 {
@@ -28,14 +30,39 @@ struct _VtmApplication
   SoupServer* server;
 };
 
+typedef enum
+{
+  VTM_APPLICATION_ERROR_FAILED,
+  VTM_APPLICATION_ERROR_INVALID_HEADER_PASSWORD,
+  VTM_APPLICATION_ERROR_INVALID_HEADER_SOURCEID,
+  VTM_APPLICATION_ERROR_INVALID_HEADER_USERNAME,
+  VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON,
+} VtmApplicationError;
+
+#define REQUEST_PARAM_AMOUNT "Amount"
+#define REQUEST_PARAM_CURRENCY "Currency"
+#define REQUEST_PARAM_DESCRIPTION "Description"
+#define REQUEST_PARAM_EXTERNALID "ExternalId"
+#define REQUEST_PARAM_SOURCE "Source"
+#define REQUEST_PARAM_NOTIFYURL "UrlResponse"
+#define REQUEST_PARAM_VALIDTIME "ValidTime"
+
 G_DECLARE_FINAL_TYPE (VtmApplication, vtm_application, VTM, APPLICATION, GApplication);
 G_DEFINE_FINAL_TYPE (VtmApplication, vtm_application, G_TYPE_APPLICATION);
+
+#define VTM_APPLICATION_ERROR (vtm_application_error_quark ())
+#define VTM_TYPE_APPLICATION (vtm_application_get_type ())
 
 #define _g_free0(var) ((var == NULL) ? NULL : (var = (g_free (var), NULL)))
 #define _g_object_unref0(var) ((var == NULL) ? NULL : (var = (g_object_unref (var), NULL)))
 
-static void handle_request2 (VtmApplication* self, SoupServerMessage* message);
+#define cool_real_member(object,name) (cool_member ((object), (name), G_TYPE_DOUBLE) || cool_member ((object), (name), G_TYPE_INT64))
+
+static G_DEFINE_QUARK (vtm-application-error-quark, vtm_application_error);
+static int cool_member (JsonObject* object, const gchar* name, GType expected_type);
 static void handle_request (SoupServer* server, SoupServerMessage* message, const gchar* path, GHashTable* query, VtmApplication* self);
+static int handle_request2 (VtmApplication* self, SoupServerMessage* message, GError** error);
+static int handle_request3 (VtmApplication* self, SoupServerMessage* message, JsonObject* request, GError** error);
 static int handle_cmdline (GApplicationCommandLine* cmdline);
 
 int main (int argc, char* argv [])
@@ -65,6 +92,22 @@ return (g_object_unref (application), result);
 
 static void vtm_application_init (VtmApplication* self)
 {
+}
+
+static int cool_member (JsonObject* object, const gchar* name, GType expected_type)
+{
+  if (json_object_has_member (object, name))
+    {
+      JsonNode* node = NULL;
+      GType got_type = 0;
+
+      if (JSON_NODE_HOLDS_VALUE (node = json_object_get_member (object, name)))
+        {
+          got_type = json_node_get_value_type (node);
+          return g_type_is_a (got_type, expected_type);
+        }
+    }
+return FALSE;
 }
 
 static int handle_cmdline (GApplicationCommandLine* cmdline)
@@ -105,8 +148,6 @@ static int handle_cmdline (GApplicationCommandLine* cmdline)
         {
           g_application_hold (G_APPLICATION (self));
           soup_server_add_handler (self->server, self->endpoint, (SoupServerCallback) handle_request, self, NULL);
-
-          g_message ("Listening on %u, '%s'", port, self->endpoint);
         }
       else
         {
@@ -122,6 +163,8 @@ static void handle_request (SoupServer* server, SoupServerMessage* message, cons
 {
   const gchar* method = soup_server_message_get_method (message);
   const gchar* version = NULL;
+
+  GError* tmperr = NULL;
   gint status = SOUP_STATUS_OK;
 
   switch (soup_server_message_get_http_version (message))
@@ -144,14 +187,101 @@ static void handle_request (SoupServer* server, SoupServerMessage* message, cons
     }
   else
     {
-      handle_request2 (self, message);
+      if ((handle_request2 (self, message, &tmperr)), G_LIKELY (tmperr == NULL))
+
+        soup_server_message_pause (message);
+      else
+        {
+          if (tmperr->domain == JSON_PARSER_ERROR
+           || tmperr->domain == VTM_APPLICATION_ERROR)
+            status = SOUP_STATUS_BAD_REQUEST;
+          else
+            status = SOUP_STATUS_INTERNAL_SERVER_ERROR;
+
+          soup_server_message_set_status (message, status, soup_status_get_phrase (status));
+          g_warning ("%s: %u: %s", g_quark_to_string (tmperr->domain), tmperr->code, tmperr->message);
+        }
     }
 
   g_print ("%s (HTTP %s) %s %i\n", method, version, path, status);
 }
 
-static void handle_request2 (VtmApplication* self, SoupServerMessage* message)
+static int handle_request2 (VtmApplication* self, SoupServerMessage* message, GError** error)
 {
+  JsonParser* parser = NULL;
+  SoupMessageBody* body = NULL;
+  SoupMessageHeaders* headers = NULL;
+  gboolean result = FALSE;
+  guint64 source_id = 0;
+  const gchar* password = NULL;
+  const gchar* sourceid = NULL;
+  const gchar* username = NULL;
+
+  body = soup_server_message_get_request_body (message);
+  headers = soup_server_message_get_request_headers (message);
+
+  if ((password = soup_message_headers_get_one (headers, "password")), G_UNLIKELY (password == NULL))
+    g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_HEADER_PASSWORD, "Invalid request data");
+  else if ((sourceid = soup_message_headers_get_one (headers, "source")), G_UNLIKELY (sourceid == NULL))
+    g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_HEADER_SOURCEID, "Invalid request data");
+  else if ((username = soup_message_headers_get_one (headers, "username")), G_UNLIKELY (username == NULL))
+    g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_HEADER_USERNAME, "Invalid request data");
+  else if ((result = g_ascii_string_to_unsigned (sourceid, 10, 0, G_MAXINT64, &source_id, error)), G_LIKELY (result == TRUE))
+    {
+      parser = json_parser_new ();
+
+      if ((result = json_parser_load_from_data (parser, body->data, body->length, error)), G_UNLIKELY (result == TRUE))
+    {
+      JsonNode* node;
+      JsonObject* object;
+
+      if (JSON_NODE_HOLDS_OBJECT (node = json_parser_get_root (parser)) == FALSE)
+        g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON, "Invalid request data");
+      else
+    {
+      object = json_node_get_object (node);
+
+      if (JSON_NODE_HOLDS_OBJECT (node = json_object_get_member (object, "request")) == FALSE)
+        g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON, "Invalid request data");
+      else
+    {
+      object = json_node_get_object (node);
+
+      if ((result = cool_real_member (object, REQUEST_PARAM_AMOUNT)), G_UNLIKELY (result == FALSE))
+        g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON, "Invalid request data");
+      else if ((result = cool_member (object, REQUEST_PARAM_CURRENCY, G_TYPE_STRING)), G_UNLIKELY (result == FALSE))
+        g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON, "Invalid request data");
+      else if ((result = cool_member (object, REQUEST_PARAM_DESCRIPTION, G_TYPE_STRING)), G_UNLIKELY (result == FALSE))
+        g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON, "Invalid request data");
+      else if ((result = cool_member (object, REQUEST_PARAM_EXTERNALID, G_TYPE_STRING)), G_UNLIKELY (result == FALSE))
+        g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON, "Invalid request data");
+      else if ((result = cool_member (object, REQUEST_PARAM_SOURCE, G_TYPE_INT64)), G_UNLIKELY (result == FALSE))
+        g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON, "Invalid request data");
+      else if ((result = cool_member (object, REQUEST_PARAM_NOTIFYURL, G_TYPE_STRING)), G_UNLIKELY (result == FALSE))
+        g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON, "Invalid request data");
+      else if ((result = cool_member (object, REQUEST_PARAM_VALIDTIME, G_TYPE_INT64)), G_UNLIKELY (result == FALSE))
+        g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON, "Invalid request data");
+      else
+    {
+      const gchar* currency = json_object_get_string_member (object, REQUEST_PARAM_CURRENCY);
+      const gchar* description = json_object_get_string_member (object, REQUEST_PARAM_DESCRIPTION);
+      const gchar* externalid = json_object_get_string_member (object, REQUEST_PARAM_EXTERNALID);
+      const gchar* notifyurl = json_object_get_string_member (object, REQUEST_PARAM_NOTIFYURL);
+      gdouble amount = (gdouble) json_object_get_double_member (object, REQUEST_PARAM_AMOUNT);
+      guint64 source = (guint64) json_object_get_int_member (object, REQUEST_PARAM_SOURCE);
+      guint64 validtime = (guint64) json_object_get_int_member (object, REQUEST_PARAM_VALIDTIME);
+
+      if (source_id != source)
+        g_set_error (error, VTM_APPLICATION_ERROR, VTM_APPLICATION_ERROR_INVALID_REQUEST_JSON, "Non-matching sources");
+      else result = handle_request3 (self, message, object, error);
+    }}}}}
+return (_g_object_unref0 (parser), result);
+}
+
+static int handle_request3 (VtmApplication* self, SoupServerMessage* message, JsonObject* request, GError** error)
+{
+  gboolean result = TRUE;
+return result;
 }
 
 static int vtm_application_class_command_line (GApplication* pself, GApplicationCommandLine* cmdline)
