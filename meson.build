@@ -46,6 +46,7 @@ libglib_dep = dependency ('glib-2.0', required : true)
 libgobject_dep = dependency ('gobject-2.0', required : true)
 libjson_dep = dependency ('json-glib-1.0', required : true)
 libsoup_dep = dependency ('libsoup-3.0', required : true)
+libsqlite_dep = dependency ('sqlite3', required : true)
 
 ########################
 # Include directories  #

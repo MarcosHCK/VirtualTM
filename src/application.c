@@ -20,6 +20,7 @@
 #include <libsoup/soup-message-body.h>
 #include <libsoup/soup-server-message.h>
 #include <libsoup/soup-server.h>
+#include <sqlite3.h>
 
 struct _VtmApplication
 {
@@ -28,6 +29,7 @@ struct _VtmApplication
   /* <private> */
   gchar* endpoint;
   SoupServer* server;
+  sqlite3* database;
 };
 
 typedef enum
@@ -47,6 +49,8 @@ typedef enum
 #define REQUEST_PARAM_NOTIFYURL "UrlResponse"
 #define REQUEST_PARAM_VALIDTIME "ValidTime"
 
+#define SQL_LIST_PAYMENT "SELECT * FROM Payment;"
+
 G_DECLARE_FINAL_TYPE (VtmApplication, vtm_application, VTM, APPLICATION, GApplication);
 G_DEFINE_FINAL_TYPE (VtmApplication, vtm_application, G_TYPE_APPLICATION);
 
@@ -55,15 +59,18 @@ G_DEFINE_FINAL_TYPE (VtmApplication, vtm_application, G_TYPE_APPLICATION);
 
 #define _g_free0(var) ((var == NULL) ? NULL : (var = (g_free (var), NULL)))
 #define _g_object_unref0(var) ((var == NULL) ? NULL : (var = (g_object_unref (var), NULL)))
+#define _sqlite3_close0(var) ((var == NULL) ? NULL : (var = (sqlite3_close (var), NULL)))
+#define _sqlite3_finalize0(var) ((var == NULL) ? NULL : (var = (sqlite3_finalize (var), NULL)))
 
 #define cool_real_member(object,name) (cool_member ((object), (name), G_TYPE_DOUBLE) || cool_member ((object), (name), G_TYPE_INT64))
 
 static G_DEFINE_QUARK (vtm-application-error-quark, vtm_application_error);
 static int cool_member (JsonObject* object, const gchar* name, GType expected_type);
+static int handle_cmdline (GApplicationCommandLine* cmdline);
+static int handle_client (VtmApplication* self, GApplicationCommandLine* cmdline);
 static void handle_request (SoupServer* server, SoupServerMessage* message, const gchar* path, GHashTable* query, VtmApplication* self);
 static int handle_request2 (VtmApplication* self, SoupServerMessage* message, GError** error);
 static int handle_request3 (VtmApplication* self, SoupServerMessage* message, JsonObject* request, GError** error);
-static int handle_cmdline (GApplicationCommandLine* cmdline);
 
 int main (int argc, char* argv [])
 {
@@ -77,10 +84,14 @@ int main (int argc, char* argv [])
       /* handle locally */
       { "version", 'V', G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, NULL, "Print version and exit", NULL, },
 
-      /* handle remotely */
+      /* handle remotely (server options) */
+      { "database", 'd', G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, NULL, "Use database FILE", "FILE", },
       { "endpoint", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, NULL, "Expose REST API on endpoint NAME", "NAME", },
       { "local", 'l', G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, NULL, "Only listen locally", NULL, },
       { "port", 'p', G_OPTION_FLAG_NONE, G_OPTION_ARG_INT, NULL, "Listen to requests at port PORT", "PORT", },
+
+      /* handle remotely (client options) */
+      { "list", 'l', G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, NULL, "List pending payments", NULL, },
       G_OPTION_ENTRY_NULL,
     };
 
@@ -115,8 +126,10 @@ static int handle_cmdline (GApplicationCommandLine* cmdline)
   GError* tmperr = NULL;
   GVariantDict* dict = NULL;
   VtmApplication* self = NULL;
-  int remote = FALSE;
+  gint remote = FALSE;
+  gint result = 0;
 
+  const gchar* database;
   const gchar* endpoint;
   gboolean flag;
   gint port;
@@ -125,38 +138,66 @@ static int handle_cmdline (GApplicationCommandLine* cmdline)
   remote = g_application_command_line_get_is_remote (cmdline);
   self = g_object_get_data (G_OBJECT (cmdline), "vtm.app");
 
-  if (remote == FALSE)
+  if (remote)
     {
+      result = handle_client (self, cmdline);
+    }
+  else
+    {
+      if (g_variant_dict_lookup (dict, "database", "s", &database) == NULL)
+        database = "virtualtm.sqlite";
+      if (g_variant_dict_lookup (dict, "endpoint", "s", &endpoint) == NULL)
+        endpoint = "/";
       if (g_variant_dict_lookup (dict, "port", "i", &port) == FALSE)
         port = 8999;
-      if (g_variant_dict_lookup (dict, "endpoint", "s", &endpoint) == FALSE)
-        endpoint = "/";
 
-      GPathBuf pathbuf = G_PATH_BUF_INIT;
-      g_path_buf_push (&pathbuf, "/");
-      g_path_buf_push (&pathbuf, endpoint);
-
-      self->endpoint = g_path_buf_clear_to_path (&pathbuf);
-      self->server = soup_server_new ("server-header", "VirtualTM Server ", NULL);
-
-      if (g_variant_dict_lookup (dict, "local", "b", &flag))
-        soup_server_listen_local (self->server, port, 0, &tmperr);
-      else
-        soup_server_listen_all (self->server, port, 0, &tmperr);
-
-      if (G_LIKELY (tmperr == NULL))
+      if ((result = sqlite3_open (database, &self->database)), G_UNLIKELY (result != SQLITE_OK))
         {
-          g_application_hold (G_APPLICATION (self));
-          soup_server_add_handler (self->server, self->endpoint, (SoupServerCallback) handle_request, self, NULL);
+          g_application_command_line_printerr (cmdline, G_LOG_DOMAIN ": %s\n", sqlite3_errmsg (self->database));
+          sqlite3_close (self->database);
+          g_application_command_line_set_exit_status (cmdline, 1);
         }
       else
         {
-          g_application_command_line_printerr (cmdline, G_LOG_DOMAIN ": %s\n", tmperr->message);
-          g_error_free (tmperr);
-          g_application_command_line_set_exit_status (cmdline, 1);
+          GPathBuf pathbuf = G_PATH_BUF_INIT;
+          g_path_buf_push (&pathbuf, "/");
+          g_path_buf_push (&pathbuf, endpoint);
+
+          self->endpoint = g_path_buf_clear_to_path (&pathbuf);
+          self->server = soup_server_new ("server-header", "VirtualTM Server ", NULL);
+
+          if (g_variant_dict_lookup (dict, "local", "b", &flag))
+            soup_server_listen_local (self->server, port, 0, &tmperr);
+          else
+            soup_server_listen_all (self->server, port, 0, &tmperr);
+
+          if (G_LIKELY (tmperr == NULL))
+            {
+              g_application_hold (G_APPLICATION (self));
+              soup_server_add_handler (self->server, self->endpoint, (SoupServerCallback) handle_request, self, NULL);
+            }
+          else
+            {
+              g_application_command_line_printerr (cmdline, G_LOG_DOMAIN ": %s\n", tmperr->message);
+              g_error_free (tmperr);
+              g_application_command_line_set_exit_status (cmdline, 1);
+            }
         }
     }
 return G_SOURCE_REMOVE;
+}
+
+static int handle_client (VtmApplication* self, GApplicationCommandLine* cmdline)
+{
+  GVariantDict* dict;
+  gboolean flag;
+
+  dict = g_application_command_line_get_options_dict (cmdline);
+
+  if (g_variant_dict_lookup (dict, "list", "b", &flag))
+    {
+    }
+  return TRUE;
 }
 
 static void handle_request (SoupServer* server, SoupServerMessage* message, const gchar* path, GHashTable* query, VtmApplication* self)
@@ -302,6 +343,7 @@ G_OBJECT_CLASS (vtm_application_parent_class)->dispose (pself);
 static void vtm_application_class_finalize (GObject* pself)
 {
   VtmApplication* self = (gpointer) pself;
+  _sqlite3_close0 (self->database);
   _g_free0 (self->endpoint);
 G_OBJECT_CLASS (vtm_application_parent_class)->finalize (pself);
 }
