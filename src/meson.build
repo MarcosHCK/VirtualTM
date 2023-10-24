@@ -15,13 +15,10 @@
 # along with virtualtm. If not, see <http://www.gnu.org/licenses/>.
 #
 
-virtualtm_headers = []
-virtualtm_sources = [ 'main.c', ]
-
 virtualtm = executable ('virtualtm',
-    sources : virtualtm_headers + virtualtm_sources,
+    sources : [ 'main.vala', ],
     c_args : [ ],
-    dependencies : [ libgio_dep, libglib_dep, libgobject_dep, libsoup_dep, ],
+    dependencies : [ libgio_dep, libglib_dep, libgobject_dep, ],
     gnu_symbol_visibility : 'hidden',
     include_directories : [ configinc, srcinc, ],
   )
