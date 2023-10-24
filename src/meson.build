@@ -16,7 +16,15 @@
 #
 
 virtualtm = executable ('virtualtm',
-    sources : [ 'main.vala', ],
+    sources : [ 'client.vala', 'daemon.vala', ],
+    c_args : [ ],
+    dependencies : [ libgio_dep, libglib_dep, libgobject_dep, ],
+    gnu_symbol_visibility : 'hidden',
+    include_directories : [ configinc, srcinc, ],
+  )
+
+virtualtm_server = executable ('virtualtm-server',
+    sources : [ 'daemon.vala', 'server.vala', ],
     c_args : [ ],
     dependencies : [ libgio_dep, libglib_dep, libgobject_dep, ],
     gnu_symbol_visibility : 'hidden',

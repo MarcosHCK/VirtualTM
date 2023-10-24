@@ -17,9 +17,12 @@
 
 namespace VirtualTM
 {
-  public static int main (string[] argv)
+  [DBus (name = "org.hck.virtualtm.Daemon")]
+  public interface Daemon : GLib.Object
     {
-      print ("Hello World\n");
-      return 0;
+      [DBus (name = "ListPending")]
+      public abstract string[] list () throws GLib.Error;
+      [DBus (name = "PayPending")]
+      public abstract bool pay (string externalid) throws GLib.Error;
     }
 }
