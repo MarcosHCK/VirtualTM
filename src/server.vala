@@ -19,6 +19,8 @@ namespace VirtualTM
 {
   public class Application : GLib.Application, Daemon
     {
+      private VirtualTM.Database database;
+
       private GLib.OptionEntry[] option_entries;
       private GLib.ActionEntry[] action_entries;
       private uint daemonid = 0;
@@ -98,11 +100,12 @@ namespace VirtualTM
 
       public string[] list () throws GLib.Error
         {
-          return {};
+          return database.get_pending ();
         }
 
       public bool pay (string externalid) throws GLib.Error
         {
+          var payment = database.get_payment (externalid);
           return true;
         }
 
@@ -114,6 +117,14 @@ namespace VirtualTM
       public override void startup ()
         {
           base.startup ();
+
+          try {
+            database = new VirtualTM.Database (database_opt);
+            }
+          catch (GLib.Error e)
+            {
+              critical (@"$(e.domain): $(e.code): $(e.message)");
+            }
         }
     }
 }

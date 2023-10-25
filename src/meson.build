@@ -24,9 +24,9 @@ virtualtm = executable ('virtualtm',
   )
 
 virtualtm_server = executable ('virtualtm-server',
-    sources : [ 'daemon.vala', 'server.vala', 'models.vala', ],
+    sources : [ 'daemon.vala', 'database.vala', 'server.vala', 'models.vala', ],
     c_args : [ ],
-    dependencies : [ libgio_dep, libglib_dep, libgobject_dep, libjson_dep, ],
+    dependencies : [ libgio_dep, libglib_dep, libgobject_dep, libjson_dep, libsqlite_dep, ],
     gnu_symbol_visibility : 'hidden',
     include_directories : [ configinc, srcinc, ],
   )
