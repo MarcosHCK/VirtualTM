@@ -20,6 +20,7 @@ namespace VirtualTM
   public class Application : GLib.Application, Daemon
     {
       private VirtualTM.Database database;
+      private VirtualTM.Endpoint endpoint;
 
       private GLib.OptionEntry[] option_entries;
       private GLib.ActionEntry[] action_entries;
@@ -111,6 +112,7 @@ namespace VirtualTM
 
       public override void shutdown ()
         {
+          endpoint.shutdown ();
           base.shutdown ();
         }
 
@@ -119,12 +121,22 @@ namespace VirtualTM
           base.startup ();
 
           try {
-            database = new VirtualTM.Database (database_opt);
+              database = new VirtualTM.Database (database_opt);
+              endpoint = new VirtualTM.Endpoint (endpoint_opt, local_opt, port_opt);
+              endpoint.got_request.connect (got_request);
             }
           catch (GLib.Error e)
             {
               critical (@"$(e.domain): $(e.code): $(e.message)");
             }
+        }
+
+      private RestApi.PaymentResult? got_request (RestApi.Credentials credentials, RestApi.PaymentParams @params)
+        {
+          bool success = true;
+          try { database.register (new Payment (credentials, @params)); }
+          catch (GLib.Error e) { success = false; critical (@"$(e.domain): $(e.code): $(e.message)"); }
+          return new RestApi.PaymentResult (success, success ? "Ok" : "Error", 1);
         }
     }
 }

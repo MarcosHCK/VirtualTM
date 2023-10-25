@@ -45,6 +45,7 @@ libgio_dep = dependency ('gio-2.0', required : true, version : '>=2.78')
 libglib_dep = dependency ('glib-2.0', required : true, version : '>=2.78')
 libgobject_dep = dependency ('gobject-2.0', required : true, version : '>=2.78')
 libjson_dep = dependency ('json-glib-1.0', required : true, version : '>=1.8')
+libsoup_dep = dependency ('libsoup-3.0', required : true, version : '>=3.4.3')
 libsqlite_dep = dependency ('sqlite3', required : true, version : '>=3.43.1')
 
 ########################
