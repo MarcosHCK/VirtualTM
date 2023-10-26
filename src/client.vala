@@ -22,6 +22,15 @@ namespace VirtualTM
       private const string bus_name = "org.hck.virtualtm.Daemon";
       private const string object_path = "/org/hck/virtualtm/Daemon";
 
+      static bool handle_version (string option_name, string? val, void* data) throws GLib.Error
+        {
+          print ("%s\n", Config.PACKAGE_STRING);
+          Posix.exit (Posix.EXIT_SUCCESS);
+
+          /* not reached, Posix.exit misses NoReturn attribute */
+          return true;
+        }
+
       public static int main (string[] argv)
         {
           var connection = (GLib.DBusConnection) null;
@@ -32,9 +41,10 @@ namespace VirtualTM
 
           GLib.OptionEntry[] entries =
             {
-              { "list", 'l', 0, GLib.OptionArg.NONE, ref list_opt, "List pending payments", null, },
-              { "pay", 'p', 0, GLib.OptionArg.STRING, ref externalid, "Set pending payment ID as completed", "ID", },
-              { "quit", 'q', 0, GLib.OptionArg.NONE, ref quit_opt, "Stop background daemon", null, },
+              { "list", 'l', GLib.OptionFlags.NONE, GLib.OptionArg.NONE, ref list_opt, "List pending payments", null, },
+              { "pay", 'p', GLib.OptionFlags.NONE, GLib.OptionArg.STRING, ref externalid, "Set pending payment ID as completed", "ID", },
+              { "quit", 'q', GLib.OptionFlags.NONE, GLib.OptionArg.NONE, ref quit_opt, "Stop background daemon", null, },
+              { "version", 'V', GLib.OptionFlags.NO_ARG, GLib.OptionArg.CALLBACK, (void*) handle_version, "Print version and exit", null, },
             };
 
           var context = new GLib.OptionContext (null);
