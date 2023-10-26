@@ -21,6 +21,7 @@ namespace VirtualTM
     {
       private VirtualTM.Database database;
       private VirtualTM.Endpoint endpoint;
+      private VirtualTM.Notifier notifier;
 
       private GLib.OptionEntry[] option_entries;
       private GLib.ActionEntry[] action_entries;
@@ -33,7 +34,6 @@ namespace VirtualTM
       private unowned int tmid_opt = 22334455;
       private unowned string database_opt = "virtualtm.db";
       private unowned string endpoint_opt = "/";
-      private unowned string phone_opt = "+53 5xxxxxxx";
 
       public static int main (string[] argv)
         {
@@ -58,7 +58,6 @@ namespace VirtualTM
               { "database", 'd', 0, GLib.OptionArg.FILENAME, ref database_opt, "Use database FILE", "FILE", },
               { "endpoint", 0, 0, GLib.OptionArg.STRING, ref endpoint_opt, "Expose REST API on endpoint NAME", "NAME", },
               { "local", 'l', 0, GLib.OptionArg.NONE, ref local_opt, "Only listen locally", null, },
-              { "phone", 0, 0, GLib.OptionArg.STRING, ref phone_opt, "Set notification Phone field value to VALUE", "VALUE", },
               { "port", 'p', 0, GLib.OptionArg.INT, ref port_opt, "Listen to requests at port PORT", "PORT", },
               { "tmid", 0, 0, GLib.OptionArg.INT, ref tmid_opt, "Set notification TmId field value to VALUE", "VALUE", },
               { "version", 'V', 0, GLib.OptionArg.NONE, null, "Print version and exit", null, },
@@ -106,8 +105,7 @@ namespace VirtualTM
 
       public bool pay (string externalid) throws GLib.Error
         {
-          var payment = database.get_payment (externalid);
-          return true;
+          return notifier.notify (database.get_payment (externalid));
         }
 
       public override void shutdown ()
@@ -123,6 +121,7 @@ namespace VirtualTM
           try {
               database = new VirtualTM.Database (database_opt);
               endpoint = new VirtualTM.Endpoint (endpoint_opt, local_opt, port_opt);
+              notifier = new VirtualTM.Notifier (bank_opt, bankid_opt, tmid_opt);
               endpoint.got_request.connect (got_request);
             }
           catch (GLib.Error e)

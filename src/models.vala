@@ -17,8 +17,21 @@
 
 namespace VirtualTM
 {
+  public sealed class Payment : GLib.Object
+    {
+      public RestApi.Credentials credentials { get; set; }
+      public RestApi.PaymentParams @params { get; set; }
+
+      public Payment (RestApi.Credentials credentials, RestApi.PaymentParams @params)
+        {
+          Object (credentials : credentials, @params : @params);
+        }
+    }
+
   namespace RestApi
   {
+    const string CONTENT_TYPE = "application/json";
+
     public class Credentials : GLib.Object
       {
         public string password { get; set; }

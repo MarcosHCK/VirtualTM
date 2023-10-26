@@ -27,17 +27,6 @@ namespace VirtualTM
       public extern static GLib.Quark quark ();
     }
 
-  public sealed class Payment : GLib.Object
-    {
-      public RestApi.Credentials credentials { get; set; }
-      public RestApi.PaymentParams @params { get; set; }
-
-      public Payment (RestApi.Credentials credentials, RestApi.PaymentParams @params)
-        {
-          Object (credentials : credentials, @params : @params);
-        }
-    }
-
   public sealed class Database : GLib.Object, GLib.Initable
     {
       /* properties */
