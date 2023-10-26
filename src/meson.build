@@ -14,13 +14,19 @@
 # You should have received a copy of the GNU General Public License
 # along with virtualtm. If not, see <http://www.gnu.org/licenses/>.
 #
-virtualtm_headers = []
-virtualtm_sources = [ 'application.c', ]
 
 virtualtm = executable ('virtualtm',
+    sources : [ 'client.vala', 'daemon.vala', ],
+    c_args : [ ],
+    dependencies : [ libgio_dep, libglib_dep, libgobject_dep, ],
+    gnu_symbol_visibility : 'hidden',
+    include_directories : [ configinc, srcinc, ],
+  )
+
+virtualtm_server = executable ('virtualtm-server',
+    sources : [ 'daemon.vala', 'database.vala', 'endpoint.vala', 'models.vala', 'notifier.vala', 'server.vala', ],
     c_args : [ ],
     dependencies : [ libgio_dep, libglib_dep, libgobject_dep, libjson_dep, libsoup_dep, libsqlite_dep, ],
     gnu_symbol_visibility : 'hidden',
     include_directories : [ configinc, srcinc, ],
-    sources : virtualtm_headers + virtualtm_sources,
   )

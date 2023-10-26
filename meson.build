@@ -15,7 +15,7 @@
 # along with virtualtm. If not, see <http://www.gnu.org/licenses/>.
 #
 
-project ('virtualtm', 'c',
+project ('VirtualTM', 'c', 'vala',
   default_options : [ 'warning_level=3', ],
   meson_version : '>= 1.2',
   version : '@0@.@1@.@2@'.format (
@@ -41,12 +41,12 @@ git_version_micro = git_version_list2.get (2)
 # Dependencies         #
 ########################
 
-libgio_dep = dependency ('gio-2.0', required : true)
-libglib_dep = dependency ('glib-2.0', required : true)
-libgobject_dep = dependency ('gobject-2.0', required : true)
-libjson_dep = dependency ('json-glib-1.0', required : true)
-libsoup_dep = dependency ('libsoup-3.0', required : true)
-libsqlite_dep = dependency ('sqlite3', required : true)
+libgio_dep = dependency ('gio-2.0', required : true, version : '>=2.78')
+libglib_dep = dependency ('glib-2.0', required : true, version : '>=2.78')
+libgobject_dep = dependency ('gobject-2.0', required : true, version : '>=2.78')
+libjson_dep = dependency ('json-glib-1.0', required : true, version : '>=1.8')
+libsoup_dep = dependency ('libsoup-3.0', required : true, version : '>=3.4.3')
+libsqlite_dep = dependency ('sqlite3', required : true, version : '>=3.43.1')
 
 ########################
 # Include directories  #
@@ -62,18 +62,25 @@ srcinc = include_directories ('src')
 configh = configuration_data ()
 configh.set ('DEBUG', get_option ('debug').to_int ())
 configh.set ('DEVELOPER', get_option ('developer').to_int ())
-configh.set_quoted ('G_LOG_DOMAIN', 'VirtualTM')
 configh.set ('G_LOG_USE_STRUCTURED', 1)
+configh.set ('PACKAGE_VERSION_MAJOR', git_version_major)
+configh.set ('PACKAGE_VERSION_MICRO', git_version_micro)
+configh.set ('PACKAGE_VERSION_MINOR', git_version_minor)
+configh.set_quoted ('G_LOG_DOMAIN', 'VirtualTM')
 configh.set_quoted ('PACKAGE_BUGREPORT', 'nouser@nohost.com')
 configh.set_quoted ('PACKAGE_NAME', meson.project_name ())
 configh.set_quoted ('PACKAGE_STRING', '@0@ @1@'.format (meson.project_name (), git_version))
 configh.set_quoted ('PACKAGE_TARNAME', meson.project_name ())
 configh.set_quoted ('PACKAGE_URL', 'https://github.com/MarcosHCK/VirtualTM')
-configh.set_quoted ('PACKAGE_VERSION', git_version)
-configh.set ('PACKAGE_VERSION_MAJOR', git_version_major)
-configh.set ('PACKAGE_VERSION_MINOR', git_version_minor)
-configh.set ('PACKAGE_VERSION_MICRO', git_version_micro)
 configh.set_quoted ('PACKAGE_VERSION_STAGE', git_version_stage)
+configh.set_quoted ('PACKAGE_VERSION', git_version)
+
+add_project_arguments ([ '--pkg', 'config', '--pkg', 'posix', ], language : 'vala')
+add_project_arguments ([ '--vapidir', meson.current_source_dir () / 'src', ], language : 'vala')
+add_project_arguments ([ '-D', 'DEBUG=@0@'.format (get_option ('debug')), ], language : 'vala')
+add_project_arguments ([ '-D', 'DEVELOPER=@0@'.format (get_option ('developer')), ], language : 'vala')
+add_project_arguments ([ '-D', 'G_LOG_DOMAIN=VirtualTM', ], language : 'vala')
+add_project_arguments ([ '-D', 'G_LOG_USE_STRUCTURED=1', ], language : 'vala')
 
 if cc.get_id () == 'gcc' or cc.get_id () == 'clang'
   warning_c_args = [
