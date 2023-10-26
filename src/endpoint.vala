@@ -145,7 +145,7 @@ namespace VirtualTM
                   var data = Json.gobject_to_data (response, out length);
 
                   message.set_status (status, Soup.Status.get_phrase (status));
-                  message.set_response ("application/json", Soup.MemoryUse.COPY, data.data);
+                  message.set_response (RestApi.CONTENT_TYPE, Soup.MemoryUse.COPY, data.data);
                 }
             }
         }
