@@ -105,7 +105,10 @@ namespace VirtualTM
 
       public bool pay (string externalid) throws GLib.Error
         {
-          return notifier.notify (database.get_payment (externalid));
+          var result1 = database.get_payment (externalid);
+          var result2 = notifier.notify (result1);
+            database.update (externalid, false);
+          return result2;
         }
 
       public override void shutdown ()

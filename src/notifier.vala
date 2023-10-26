@@ -61,7 +61,13 @@ namespace VirtualTM
             throw new NotifyError.BAD_URI ("Failed to parse '%s'", urlresponse);
           else
             {
-              message.set_request_body_from_bytes (RestApi.CONTENT_TYPE, new GLib.Bytes.static (data.data));
+              var body = new GLib.Bytes.static (data.data);
+              var headers = message.get_request_headers ();
+
+              headers.append ("password", payment.credentials.password);
+              headers.append ("source", payment.credentials.source);
+              headers.append ("username", payment.credentials.username);
+              message.set_request_body_from_bytes (RestApi.CONTENT_TYPE, body);
 
               var response_data = session.send_and_read (message);
               var response_object = Json.gobject_from_data (typeof (RestApi.NotifyResponse), (string) response_data.get_data (), (ssize_t) response_data.get_size ());
