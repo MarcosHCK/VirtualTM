@@ -74,7 +74,7 @@ namespace VirtualTM
           = "SELECT "
             + column_amount + ", " + column_currency + ", " + column_description + ", "
             + column_externalid + "," + column_phone + ", " + column_source + ", "
-            + column_validtime + ", " + column_urlresponse + ", " + column_password + ", "
+            + column_urlresponse + ", " + column_validtime + ", " + column_password + ", "
             + column_username + " "
           + "FROM " + table_name + " "
           + "WHERE " + column_externalid + " = ?;";
